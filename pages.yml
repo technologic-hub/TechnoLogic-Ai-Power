@@ -1,0 +1,52 @@
+name: Deploy to GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Inject public Supabase config
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
+            echo "::warning::SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY repository variables are not set. Sign-up will report that it is not configured."
+            exit 0
+          fi
+          python3 - <<'PY'
+          import os,sys,re,json,base64
+          u=os.environ["SUPABASE_URL"].strip();k=os.environ["SUPABASE_KEY"].strip()
+          if not re.fullmatch(r"https://[A-Za-z0-9.-]+\.supabase\.(co|in)",u): sys.exit("::error::SUPABASE_URL must look like https://<project-ref>.supabase.co")
+          if k.startswith("sb_secret_"): sys.exit("::error::Refusing to publish a secret key. Use the publishable/anon key.")
+          if not re.fullmatch(r"[A-Za-z0-9_.-]+",k): sys.exit("::error::Key contains unexpected characters.")
+          if k.startswith("eyJ"):
+              try:
+                  p=k.split(".")[1];p+="="*(-len(p)%4);role=json.loads(base64.urlsafe_b64decode(p)).get("role")
+              except Exception: role=None
+              if role=="service_role": sys.exit("::error::Refusing to publish a service_role key.")
+          s=open("index.html",encoding="utf-8").read()
+          a='name="supabase-url" content=""';b='name="supabase-anon-key" content=""'
+          if a not in s or b not in s: sys.exit("::error::Config meta tags not found or already filled in index.html.")
+          s=s.replace(a,'name="supabase-url" content="%s"'%u).replace(b,'name="supabase-anon-key" content="%s"'%k)
+          open("index.html","w",encoding="utf-8").write(s);print("Supabase public config injected.")
+          PY
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4
