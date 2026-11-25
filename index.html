@@ -1,4 +1,5 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="supabase-url" content=""><meta name="supabase-anon-key" content="">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>TECHNOLOGIC AI POWER — Local AI, managed with intent</title>
 <meta name="description" content="TECHNOLOGIC AI POWER is a Windows desktop application for managing and running AI models locally.">
@@ -96,11 +97,11 @@ footer{border-top:1px solid var(--line);padding:44px 0;font-size:.9rem}footer .w
 <details><summary>How can I get help?</summary><p>See the <a href="#help" style="color:var(--acc)">Help</a> page.</p></details></div></section>
 </div>
 
-<div class="view" id="v-account"><section class="hero amb s"><div class="w" style="max-width:480px"><h1 style="font-size:2.2rem">Create an account</h1><p>Account registration is not available yet. This form only checks that your input is well-formed and sends nothing anywhere.</p>
+<div class="view" id="v-account"><section class="hero amb s"><div class="w" style="max-width:480px"><h1 style="font-size:2.2rem">Create an account</h1><p>Register with your email, or continue with GitHub.</p>
 <form id="f" novalidate><label for="e">Email</label><input id="e" type="email" autocomplete="email"><div class="err" id="ee"></div>
 <label for="p">Password</label><input id="p" type="password" autocomplete="new-password"><div class="err" id="pe"></div>
 <label for="c">Confirm password</label><input id="c" type="password" autocomplete="new-password"><div class="err" id="ce"></div>
-<button class="btn p" type="submit" style="width:100%;margin-top:12px">Check details</button><div class="err" id="fm" role="status"></div></form>
+<button class="btn p" type="submit" style="width:100%;margin-top:12px">Create account</button><button class="btn" type="button" id="gh" style="width:100%;margin:10px 0 0">Continue with GitHub</button><div class="err" id="fm" role="status"></div></form>
 <p style="margin-top:20px">Already have an account? <a href="#account" style="color:var(--acc)">Sign in</a></p>
 </div></section></div>
 
@@ -126,7 +127,22 @@ tabs($("ft"));tabs(document.querySelector(".seg"));
 var T=["Getting Started","Installation","Account Help","Hardware Compatibility","AI Models","Inference Engines","Resource Management","Troubleshooting","Frequently Asked Questions"],g=$("hg");
 T.forEach(function(t){var d=document.createElement("div");d.className="card";d.innerHTML="<h3></h3><span class='tag' style='margin:0'>Coming soon</span>";d.firstChild.textContent=t;g.appendChild(d)});
 $("s").oninput=function(e){var q=e.target.value.toLowerCase(),n=0;[].forEach.call(g.children,function(c){var k=c.textContent.toLowerCase().indexOf(q)>-1;c.style.display=k?"":"none";if(k)n++});$("hn").hidden=!!n};
+var RET=location.origin+location.pathname,SBV="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js",sb;
+function say(t,ok){var f=$("fm");f.textContent=t;f.style.color=ok?"var(--tx)":""}
+function cfg(n){var m=document.querySelector('meta[name="'+n+'"]');return m?m.content.trim():""}
+function auth(){if(sb)return Promise.resolve(sb);var u=cfg("supabase-url"),k=cfg("supabase-anon-key");if(!u||!k)return Promise.reject({code:"nocfg"});
+return new Promise(function(ok,no){if(window.supabase)return ok();var s=document.createElement("script");s.src=SBV;s.onload=ok;s.onerror=function(){no({code:"noload"})};document.head.appendChild(s)}).then(function(){sb=window.supabase.createClient(u,k,{auth:{flowType:"pkce",detectSessionInUrl:true,persistSession:true}});return sb})}
+function fail(x){var m=x&&x.message||"",c=x&&x.code||"";say(c==="nocfg"?"Sign-up isn’t configured on this site yet: the Supabase URL and public key are missing.":c==="noload"?"Couldn’t load the sign-in service. Check your connection and try again.":(x&&x.status===429)||c==="over_email_send_rate_limit"?"Too many attempts. Please wait a moment and try again.":c==="user_already_exists"||/already registered/i.test(m)?"An account with this email already exists. Sign in instead, or continue with GitHub.":m||"Something went wrong. No account was created.")}
 $("f").onsubmit=function(ev){ev.preventDefault();var e=$("e").value,p=$("p").value,c=$("c").value,ok=true;function s(i,x){$(i).textContent=x;if(x)ok=false}
-s("ee",/^\S+@\S+\.\S+$/.test(e)?"":"Enter a valid email address.");s("pe",p.length>=8?"":"Use at least 8 characters.");s("ce",c===p&&c?"":"Passwords do not match.");$("fm").textContent=ok?"Details look valid, but no account was created: registration isn’t available yet.":""};
+s("ee",/^\S+@\S+\.\S+$/.test(e)?"":"Enter a valid email address.");s("pe",p.length>=8?"":"Use at least 8 characters.");s("ce",c===p&&c?"":"Passwords do not match.");if(!ok){$("fm").textContent="";return}
+var bt=ev.target.querySelector("button[type=submit]");bt.disabled=true;say("Creating account…",1);
+auth().then(function(c){return c.auth.signUp({email:e,password:p,options:{emailRedirectTo:RET}})}).then(function(r){if(r.error)throw r.error;var u=r.data&&r.data.user;
+if(u&&u.identities&&!u.identities.length)say("An account with this email already exists. Sign in instead, or continue with GitHub.");
+else if(r.data.session)say("Account created. You’re signed in.",1);
+else say("Account created. Check your email and follow the link to confirm your address.",1)}).catch(fail).then(function(){bt.disabled=false})};
+$("gh").onclick=function(){var b=this;b.disabled=true;say("Redirecting to GitHub…",1);auth().then(function(c){return c.auth.signInWithOAuth({provider:"github",options:{redirectTo:RET}})}).then(function(r){if(r.error)throw r.error}).catch(function(x){fail(x);b.disabled=false})};
+(function(){var q=new URLSearchParams(location.search),er=q.get("error_description")||q.get("error");if(!q.has("code")&&!er)return;location.hash="#account";var done=function(){history.replaceState(null,"",location.pathname+"#account")};
+if(er){say(er);return done()}
+auth().then(function(c){return c.auth.getSession()}).then(function(r){var s=r.data&&r.data.session;if(s)say("You’re signed in as "+(s.user.email||"your account")+".",1);else say(r.error&&r.error.message||"Sign-in didn’t complete. Please try again.")}).catch(fail).then(done)})();
 if(window.IntersectionObserver){var io=new IntersectionObserver(function(es){es.forEach(function(e){e.target.classList.toggle("off",!e.isIntersecting)})});document.querySelectorAll(".amb").forEach(function(a){io.observe(a)})}
 </script></body></html>
